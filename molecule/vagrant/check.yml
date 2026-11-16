@@ -1,0 +1,32 @@
+---
+- name: Check the running jail
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Unit state
+      ansible.builtin.systemd:
+        name: fail2ban
+      register: __unit
+
+    - name: Read the sshd jail status
+      ansible.builtin.command: fail2ban-client status sshd
+      register: __jail
+      changed_when: false
+      retries: 15
+      delay: 4
+      until: __jail.rc == 0
+
+    - name: Ignore list
+      ansible.builtin.command: fail2ban-client get sshd ignoreip
+      register: __ign
+      changed_when: false
+
+    - name: Running, enabled, with loopback ignored
+      ansible.builtin.assert:
+        that:
+          - __unit.status.ActiveState == 'active'
+          - __unit.status.UnitFileState == 'enabled'
+          - "'127.0.0.' in __ign.stdout"
+        fail_msg: "unit={{ __unit.status.ActiveState }}/{{ __unit.status.UnitFileState }} ignoreip={{ __ign.stdout }}"
+        quiet: true

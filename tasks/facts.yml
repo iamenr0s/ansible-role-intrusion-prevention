@@ -1,0 +1,74 @@
+---
+# Read-only. Sets the __lh_ips_* facts.
+- name: Gather package facts
+  ansible.builtin.package_facts:
+
+- name: Work out the addresses that are never banned (persistent)
+  ansible.builtin.set_fact:
+    __lh_ips_ignore: "{{ (['127.0.0.1/8', '::1'] + linux_hardening_ips_ignoreip) | unique | list }}"
+    __lh_ips_installed: "{{ 'fail2ban' in ansible_facts['packages'] }}"
+    __lh_ips_container: "{{ ansible_facts['virtualization_type'] | default('') in __linux_hardening_ips_container_types }}"
+
+# Who is connected over ssh right now (sudo resets SSH_CONNECTION, so the environment cannot tell us).
+- name: List the established ssh peers
+  ansible.builtin.command: "ss -Htn state established '( sport = :{{ linux_hardening_ips_sshd_port }} )'"
+  register: __lh_ips_ss
+  changed_when: false
+  failed_when: false
+
+- name: Keep the peer addresses
+  ansible.builtin.set_fact:
+    __lh_ips_peers: >-
+      {{ __lh_ips_ss.stdout_lines | default([]) | map('split')
+         | map('last') | map('regex_replace', '^\[?(.*?)\]?:[0-9]+$', '\1') | map('regex_replace', '^::ffff:', '')
+         | unique | list }}
+
+- name: Render the jail drop-in
+  ansible.builtin.set_fact:
+    __lh_ips_content: "{{ lookup('ansible.builtin.template', 'jail.local.j2') }}"
+
+- name: Read the drop-in
+  ansible.builtin.slurp:
+    src: "{{ linux_hardening_ips_dropin }}"
+  register: __lh_ips_file
+  failed_when: false
+
+- name: Stat the drop-in
+  ansible.builtin.stat:
+    path: "{{ linux_hardening_ips_dropin }}"
+  register: __lh_ips_stat
+
+- name: Query the fail2ban unit
+  ansible.builtin.systemd:
+    name: fail2ban
+  register: __lh_ips_unit
+  failed_when: false
+
+- name: Ask the running daemon about the sshd jail
+  ansible.builtin.command: fail2ban-client status sshd
+  register: __lh_ips_jail
+  changed_when: false
+  failed_when: false
+  when:
+    - __lh_ips_installed | bool
+    - not (__lh_ips_container | bool)
+    - __lh_ips_unit.status.ActiveState | default('') == 'active'
+
+# A ban is only a rule if the action's firewall backend works; otherwise the jail "bans" and nothing happens.
+- name: Ask which ban actions the sshd jail uses
+  ansible.builtin.command: fail2ban-client get sshd actions
+  register: __lh_ips_actions
+  changed_when: false
+  failed_when: false
+  when: __lh_ips_jail.rc | default(1) == 0
+
+- name: Look for firewall backends
+  ansible.builtin.shell: "command -v nft; command -v iptables; true"
+  register: __lh_ips_bins
+  changed_when: false
+
+- name: Query firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+  register: __lh_ips_firewalld
+  failed_when: false

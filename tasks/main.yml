@@ -1,0 +1,63 @@
+---
+# audit: read-only. remediate: package, jail drop-in, service. Never starts the service in a container.
+- name: Run intrusion_prevention
+  when: linux_hardening_ips_enabled | bool
+  block:
+    - name: Validate linux_hardening_mode
+      ansible.builtin.assert:
+        that: linux_hardening_mode in ['audit', 'remediate']
+        fail_msg: "linux_hardening_mode must be 'audit' or 'remediate', got '{{ linux_hardening_mode }}'"
+        quiet: true
+
+    - name: Skip other OS families
+      ansible.builtin.set_fact:
+        linux_hardening_ips_findings: []
+      when: ansible_facts['os_family'] not in ['RedHat', 'Debian']
+
+    - name: Say why the role was skipped
+      ansible.builtin.debug:
+        msg: "intrusion_prevention supports the RedHat and Debian families; {{ ansible_facts['os_family'] }} is skipped."
+      when: ansible_facts['os_family'] not in ['RedHat', 'Debian']
+
+    - name: Run on a supported family
+      when: ansible_facts['os_family'] in ['RedHat', 'Debian']
+      block:
+        - name: Audit (read-only)
+          ansible.builtin.include_tasks: audit.yml
+          when: linux_hardening_mode == 'audit'
+
+        - name: Remediate
+          when: linux_hardening_mode == 'remediate'
+          block:
+            - name: Require explicit remediation confirmation
+              ansible.builtin.assert:
+                that: linux_hardening_confirm_remediation | bool
+                fail_msg: >-
+                  Remediation installs fail2ban and starts banning addresses at the firewall. Set
+                  linux_hardening_confirm_remediation: true to proceed (run with linux_hardening_mode: audit to preview).
+                quiet: true
+
+            - name: Gather fail2ban state
+              ansible.builtin.include_tasks: facts.yml
+
+            # On EL fail2ban is in EPEL: without consent audit reports it, so remediate must not fail on it.
+            - name: Check that fail2ban can be installed
+              ansible.builtin.set_fact:
+                __lh_ips_blocked: >-
+                  {{ not __lh_ips_installed and ansible_facts['os_family'] == 'RedHat'
+                     and ansible_facts['distribution'] != 'Fedora' and not (linux_hardening_ips_enable_epel | bool) }}
+
+            - name: Say why nothing was configured
+              ansible.builtin.debug:
+                msg: "fail2ban is in EPEL on EL and linux_hardening_ips_enable_epel is false: nothing was installed or configured."
+              when: __lh_ips_blocked | bool
+
+            - name: Configure
+              ansible.builtin.include_tasks: configure.yml
+              when: not (__lh_ips_blocked | bool)
+
+            - name: Verify effective configuration
+              ansible.builtin.include_tasks: audit.yml
+              vars:
+                __lh_ips_audit_fatal: true
+              when: linux_hardening_verify | bool

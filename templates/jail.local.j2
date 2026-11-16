@@ -1,0 +1,14 @@
+{{ ansible_managed | comment }}
+# iamenr0s.linux_hardening, intrusion_prevention. Changes are overwritten.
+[DEFAULT]
+ignoreip = {{ __lh_ips_ignore | join(' ') }}
+bantime = {{ linux_hardening_ips_bantime }}
+findtime = {{ linux_hardening_ips_findtime }}
+maxretry = {{ linux_hardening_ips_maxretry }}
+{% if linux_hardening_ips_banaction %}
+banaction = {{ linux_hardening_ips_banaction }}
+{% endif %}
+
+[sshd]
+enabled = true
+port = {{ linux_hardening_ips_sshd_port }}

@@ -1,0 +1,32 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read the drop-in
+      ansible.builtin.slurp:
+        src: /etc/fail2ban/jail.d/99-linux-hardening.local
+      register: __f
+
+    - name: Check the content
+      ansible.builtin.assert:
+        that:
+          - "(__f.content | b64decode) is search('(?m)^ignoreip = 127.0.0.1/8 ::1 .*192.0.2.0/24')"
+          - "(__f.content | b64decode) is search('(?m)^maxretry = 3$')"
+          - "(__f.content | b64decode) is search('(?m)^enabled = true$')"
+        quiet: true
+
+    - name: Audit again
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: audit
+        linux_hardening_fail_on_error: false
+        linux_hardening_ips_ignoreip: [192.0.2.0/24]
+        linux_hardening_ips_maxretry: 3
+
+    - name: Only the container report is left, and the service was not started
+      ansible.builtin.assert:
+        that: linux_hardening_ips_findings | map(attribute='key') | difference(['fail2ban running']) | length == 0
+        quiet: true

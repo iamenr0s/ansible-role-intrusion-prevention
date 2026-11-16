@@ -1,0 +1,140 @@
+---
+- name: Check after converge
+  ansible.builtin.import_playbook: check.yml
+
+- name: A ban with no working firewall backend is reported (on EL firewalld is down)
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Audit
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: audit
+        linux_hardening_fail_on_error: false
+
+    - name: Query firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+      register: __fwd
+      failed_when: false
+
+    - name: The finding is there exactly when firewalld is the action and is down
+      ansible.builtin.assert:
+        that: >-
+          (linux_hardening_ips_findings | selectattr('key', 'search', '^ban action') | list | length > 0)
+          == (ansible_facts['os_family'] == 'RedHat' and __fwd.status.ActiveState | default('') != 'active')
+        fail_msg: "{{ linux_hardening_ips_findings | to_json }}"
+        quiet: true
+
+    # A real EL host runs firewalld (firewall_hardening); the image does not. ssh stays open in its default zone.
+    - name: Install and start firewalld (EL)
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Start firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Reload fail2ban so it sees the working backend (this drops the runtime ignore list)
+      ansible.builtin.command: fail2ban-client reload
+      changed_when: true
+
+    - name: Run the role again, which exempts the current ssh peers once more
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: remediate
+        linux_hardening_confirm_remediation: true
+        linux_hardening_ips_enable_epel: true
+
+- name: The session address is protected, a ban reaches the firewall, the filter matches
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: The ssh peers
+      ansible.builtin.command: "ss -Htn state established '( sport = :ssh )'"
+      register: __ss
+      changed_when: false
+
+    - name: Ignore list
+      ansible.builtin.command: fail2ban-client get sshd ignoreip
+      register: __ign
+      changed_when: false
+
+    - name: Every ssh peer, the one Ansible uses included, is exempt from bans
+      ansible.builtin.assert:
+        that:
+          - __ss.stdout_lines | length > 0
+          - __ss.stdout_lines | map('split') | map('last') | map('regex_replace', ':[0-9]+$', '') | map('regex_replace', '^::ffff:', '') | select('in', __ign.stdout) | list | length == __ss.stdout_lines | length
+        fail_msg: "peers={{ __ss.stdout }} ignoreip={{ __ign.stdout }}"
+        quiet: true
+
+    - name: Ban a documentation address
+      ansible.builtin.command: fail2ban-client set sshd banip 203.0.113.5
+      changed_when: true
+
+    - name: The ban is in the jail
+      ansible.builtin.command: fail2ban-client status sshd
+      register: __jail
+      changed_when: false
+      failed_when: "'203.0.113.5' not in __jail.stdout"
+
+    # fail2ban uses firewalld on EL and nftables on Debian; ask whichever exists.
+    - name: Read the firewall
+      ansible.builtin.shell: "{ nft list ruleset; iptables-save; firewall-cmd --list-rich-rules; firewall-cmd --direct --get-all-rules; } 2>&1; true"
+      register: __fw
+      changed_when: false
+
+    - name: The ban is in the firewall
+      ansible.builtin.assert:
+        that: "'203.0.113.5' in __fw.stdout"
+        fail_msg: "firewall output: {{ __fw.stdout }}"
+        quiet: true
+
+    - name: Lift the ban
+      ansible.builtin.command: fail2ban-client set sshd unbanip 203.0.113.5
+      changed_when: true
+
+    - name: The sshd filter recognises a failed login
+      ansible.builtin.command: >-
+        fail2ban-regex
+        "Nov 10 10:00:00 host sshd[1234]: Failed password for root from 203.0.113.9 port 4242 ssh2"
+        sshd
+      register: __rx
+      changed_when: false
+      failed_when: "'1 matched' not in __rx.stdout"
+
+- name: Role audit is clean
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Audit
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: audit
+        linux_hardening_fail_on_error: true
+
+- name: Reboot
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    # See mount_hardening: the post-reboot delay avoids polling sshd during early boot on this 1-CPU box.
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 45
+        connect_timeout: 30
+
+- name: The jail is back after a reboot
+  ansible.builtin.import_playbook: check.yml

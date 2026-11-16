@@ -1,0 +1,20 @@
+---
+argument_specs:
+  main:
+    short_description: Audit and configure fail2ban for sshd without banning the administrator.
+    options:
+      linux_hardening_mode: {type: str, default: audit, choices: [audit, remediate], description: "audit is read-only."}
+      linux_hardening_confirm_remediation: {type: bool, default: false, description: "Must be true before remediate changes anything."}
+      linux_hardening_backup: {type: bool, default: true, description: "Back up the jail drop-in when it changes."}
+      linux_hardening_verify: {type: bool, default: true, description: "Re-audit after remediation."}
+      linux_hardening_fail_on_error: {type: bool, default: true, description: "Fail the play when audit finds deviations."}
+      linux_hardening_ips_enabled: {type: bool, default: true, description: "Run the role."}
+      linux_hardening_ips_dropin: {type: path, default: /etc/fail2ban/jail.d/99-linux-hardening.local, description: "Jail drop-in to manage."}
+      linux_hardening_ips_ignoreip: {type: list, elements: str, default: [], description: "Addresses or CIDRs that are never banned."}
+      linux_hardening_ips_auto_ignore_connection: {type: bool, default: true, description: "Exempt the addresses with an established ssh session from bans at runtime (not written to the config)."}
+      linux_hardening_ips_bantime: {type: str, default: 1h, description: "Ban duration."}
+      linux_hardening_ips_findtime: {type: str, default: 10m, description: "Window in which failures are counted."}
+      linux_hardening_ips_maxretry: {type: int, default: 5, description: "Failures inside findtime that cause a ban."}
+      linux_hardening_ips_sshd_port: {type: str, default: ssh, description: "Port(s) or service name the sshd jail protects."}
+      linux_hardening_ips_banaction: {type: raw, default: null, description: "Ban action; null keeps the distribution default."}
+      linux_hardening_ips_enable_epel: {type: bool, default: false, description: "Allow installing epel-release on EL to get fail2ban."}

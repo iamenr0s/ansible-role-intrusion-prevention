@@ -1,0 +1,28 @@
+---
+# --- Shared collection variables ---
+linux_hardening_mode: audit                    # audit (read-only) | remediate
+linux_hardening_confirm_remediation: false     # must be true for any change
+linux_hardening_backup: true
+linux_hardening_verify: true
+linux_hardening_fail_on_error: true
+
+# --- intrusion_prevention (fail2ban protecting sshd; EL / Fedora / Debian / Ubuntu) ---
+linux_hardening_ips_enabled: true
+linux_hardening_ips_dropin: /etc/fail2ban/jail.d/99-linux-hardening.local
+
+# Never banned (written to the config). Loopback is always added. Addresses with an established ssh
+# session when the role runs are also exempted at runtime (see auto_ignore_connection), so the role cannot ban the
+# machine that is configuring it.
+linux_hardening_ips_ignoreip: []
+linux_hardening_ips_auto_ignore_connection: true
+
+linux_hardening_ips_bantime: 1h
+linux_hardening_ips_findtime: 10m
+linux_hardening_ips_maxretry: 5
+# Port(s) or service name the sshd jail protects; set it when sshd does not listen on 22.
+linux_hardening_ips_sshd_port: ssh
+# null keeps the distribution's default ban action (nftables, firewalld, iptables ...).
+linux_hardening_ips_banaction: null
+
+# fail2ban is in EPEL on EL. Adding a third-party repository is your call, so it needs this switch.
+linux_hardening_ips_enable_epel: false

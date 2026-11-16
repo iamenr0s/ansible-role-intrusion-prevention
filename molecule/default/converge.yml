@@ -1,0 +1,17 @@
+---
+# Containers get the package and files only (a ban would be a rule in the host firewall). EPEL is allowed
+# for EL; the VM scenario proves the service, a real ban and a reboot.
+- name: Converge (remediate)
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Remediate
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: remediate
+        linux_hardening_confirm_remediation: true
+        linux_hardening_ips_enable_epel: true
+        linux_hardening_ips_ignoreip: [192.0.2.0/24]
+        linux_hardening_ips_maxretry: 3

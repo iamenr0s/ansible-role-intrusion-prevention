@@ -1,0 +1,2 @@
+---
+__linux_hardening_ips_container_types: [docker, podman, container, lxc, nspawn, systemd-nspawn, openvz]
