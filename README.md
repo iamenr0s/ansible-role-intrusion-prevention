@@ -57,7 +57,8 @@ Molecule container scenarios `default` (package, drop-in, enable; no start), `au
 ## Known gaps
 - A ban is proven by `banip` and by the filter matching a sample line, **not** by really failing ssh logins until the jail trips.
 - Only the sshd jail. No recidive jail, no `ignorecommand`, no mail actions; sshguard is not supported.
-- Not tested on an Ubuntu or Fedora VM, EL8/EL10, or a non-default sshd port. Check mode is not exercised in CI. CIS IDs not mapped.
+- Not tested on an Ubuntu or Fedora VM, EL8/EL10, or a non-default sshd port. Check mode is exercised in CI on an already configured host only.
+- Check mode on a host whose apt package lists were never downloaded cannot resolve fail2ban and fails at the install preview. CIS IDs not mapped.
 
 CI & Release (maintainers)
 ----------------------------

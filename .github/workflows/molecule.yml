@@ -17,12 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # gitleaks scans the whole history
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - run: pip install ansible ansible-lint yamllint
-      - run: yamllint .
-      - run: ansible-lint
+      # Same hooks as local pre-commit (yamllint --strict, ansible-lint).
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files --show-diff-on-failure
+      # The gitleaks pre-commit hook only scans staged changes, so scan the history here.
+      - run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact
 
   molecule:
     name: ${{ matrix.distro }}
@@ -50,7 +54,7 @@ jobs:
           python-version: "3.14"
       - run: pip install "${{ matrix.ansible_pin || 'ansible' }}" molecule "molecule-plugins[podman]"
       - name: Run all scenarios
-        run: molecule test --all --exclude vagrant --exclude vagrant-relabel  # vagrant scenarios need libvirt: run locally
+        run: molecule test --all --exclude vagrant  # vagrant scenarios need libvirt: run locally
         env:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
