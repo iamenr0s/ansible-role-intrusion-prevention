@@ -13,9 +13,11 @@
 # Who is connected over ssh right now (sudo resets SSH_CONNECTION, so the environment cannot tell us).
 # shortcut: port ranges (2200:2300) are not expanded; add them to linux_hardening_ips_ignoreip if you use one.
 - name: facts | List the established ssh peers
-  ansible.builtin.command: >-
-    ss -Htn state established '( {{ linux_hardening_ips_sshd_port | string | split(',') | map('trim') | select
-    | map('regex_replace', '^', 'sport = :') | join(' or ') }} )'
+  ansible.builtin.command: "ss -Htn state established '( {{ __lh_ips_ss_filter }} )'"
+  vars:
+    __lh_ips_ss_filter: >-
+      {{ linux_hardening_ips_sshd_port | string | split(',') | map('trim') | select
+         | map('regex_replace', '^', 'sport = :') | join(' or ') }}
   register: __lh_ips_ss
   check_mode: false
   changed_when: false
