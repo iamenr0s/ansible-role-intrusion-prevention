@@ -6,7 +6,9 @@
     - name: Validate linux_hardening_mode
       ansible.builtin.assert:
         that: linux_hardening_mode in ['audit', 'remediate']
-        fail_msg: "linux_hardening_mode must be 'audit' or 'remediate', got '{{ linux_hardening_mode }}'"
+        fail_msg: >-
+          linux_hardening_mode must be 'audit' or 'remediate',
+          got '{{ linux_hardening_mode }}'
         quiet: true
 
     - name: Skip other OS families
@@ -16,7 +18,9 @@
 
     - name: Say why the role was skipped
       ansible.builtin.debug:
-        msg: "intrusion_prevention supports the RedHat and Debian families; {{ ansible_facts['os_family'] }} is skipped."
+        msg: >-
+          intrusion_prevention supports the RedHat and Debian families;
+          {{ ansible_facts['os_family'] }} is skipped.
       when: ansible_facts['os_family'] not in ['RedHat', 'Debian']
 
     - name: Run on a supported family
@@ -33,8 +37,9 @@
               ansible.builtin.assert:
                 that: linux_hardening_confirm_remediation | bool
                 fail_msg: >-
-                  Remediation installs fail2ban and starts banning addresses at the firewall. Set
-                  linux_hardening_confirm_remediation: true to proceed (run with linux_hardening_mode: audit to preview).
+                  Remediation installs fail2ban and starts banning addresses at the firewall.
+                  Set linux_hardening_confirm_remediation: true to proceed
+                  (run with linux_hardening_mode: audit to preview).
                 quiet: true
 
             - name: Gather fail2ban state
@@ -49,7 +54,9 @@
 
             - name: Say why nothing was configured
               ansible.builtin.debug:
-                msg: "fail2ban is in EPEL on EL and linux_hardening_ips_enable_epel is false: nothing was installed or configured."
+                msg: >-
+                  fail2ban is in EPEL on EL and linux_hardening_ips_enable_epel is false:
+                  nothing was installed or configured.
               when: __lh_ips_blocked | bool
 
             - name: Configure

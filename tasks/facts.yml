@@ -7,7 +7,8 @@
   ansible.builtin.set_fact:
     __lh_ips_ignore: "{{ (['127.0.0.1/8', '::1'] + linux_hardening_ips_ignoreip) | unique | list }}"
     __lh_ips_installed: "{{ 'fail2ban' in ansible_facts['packages'] }}"
-    __lh_ips_container: "{{ ansible_facts['virtualization_type'] | default('') in __linux_hardening_ips_container_types }}"
+    __lh_ips_container: >-
+      {{ ansible_facts['virtualization_type'] | default('') in __linux_hardening_ips_container_types }}
 
 # Who is connected over ssh right now (sudo resets SSH_CONNECTION, so the environment cannot tell us).
 # shortcut: port ranges (2200:2300) are not expanded; add them to linux_hardening_ips_ignoreip if you use one.

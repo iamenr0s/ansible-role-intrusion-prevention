@@ -73,7 +73,10 @@
       ansible.builtin.assert:
         that:
           - __ss.stdout_lines | length > 0
-          - __ss.stdout_lines | map('split') | map('last') | map('regex_replace', ':[0-9]+$', '') | map('regex_replace', '^::ffff:', '') | select('in', __ign.stdout) | list | length == __ss.stdout_lines | length
+          - >-
+            __ss.stdout_lines | map('split') | map('last') | map('regex_replace', ':[0-9]+$', '')
+            | map('regex_replace', '^::ffff:', '') | select('in', __ign.stdout) | list | length
+            == __ss.stdout_lines | length
         fail_msg: "peers={{ __ss.stdout }} ignoreip={{ __ign.stdout }}"
         quiet: true
 
@@ -89,7 +92,9 @@
 
     # fail2ban uses firewalld on EL and nftables on Debian; ask whichever exists.
     - name: Read the firewall
-      ansible.builtin.shell: "{ nft list ruleset; iptables-save; firewall-cmd --list-rich-rules; firewall-cmd --direct --get-all-rules; } 2>&1; true"
+      ansible.builtin.shell: >-
+        { nft list ruleset; iptables-save; firewall-cmd --list-rich-rules;
+        firewall-cmd --direct --get-all-rules; } 2>&1; true
       register: __fw
       changed_when: false
 

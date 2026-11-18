@@ -35,7 +35,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [almalinux9, debian13, ubuntu2404, fedora44, almalinux8, almalinux10, rockylinux9, debian12, ubuntu2204, fedora42, fedora43, rockylinux8, rockylinux10]
+        distro: [almalinux9, debian13, ubuntu2404, fedora44, almalinux8, almalinux10, rockylinux9,
+                 debian12, ubuntu2204, fedora42, fedora43, rockylinux8, rockylinux10]
         include:
           # EL8 managed-node Python 3.6 needs ansible-core 2.16
           - {distro: almalinux8, experimental: true, ansible_pin: "ansible<10"}

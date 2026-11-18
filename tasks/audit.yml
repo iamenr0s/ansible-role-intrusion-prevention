@@ -7,34 +7,50 @@
     __lh_ips_findings: >-
       {%- set out = [] -%}
       {%- set unit = __lh_ips_unit.status | default({}) -%}
-      {%- set can_install = ansible_facts['os_family'] == 'Debian' or ansible_facts['distribution'] == 'Fedora' or (linux_hardening_ips_enable_epel | bool) -%}
+      {%- set can_install = ansible_facts['os_family'] == 'Debian'
+                            or ansible_facts['distribution'] == 'Fedora'
+                            or (linux_hardening_ips_enable_epel | bool) -%}
       {%- if not __lh_ips_installed -%}
       {%- set _ = out.append({'key': 'package fail2ban', 'expected': 'installed',
-                              'actual': 'missing' ~ ('' if can_install else ' (reported only: it is in EPEL on EL, set linux_hardening_ips_enable_epel)'),
+                              'actual': 'missing' ~ ('' if can_install else
+                                        ' (reported only: it is in EPEL on EL, set linux_hardening_ips_enable_epel)'),
                               'fixable': can_install}) -%}
       {%- else -%}
-      {%- if __lh_ips_file.content is not defined or (__lh_ips_file.content | b64decode) != __lh_ips_content or __lh_ips_stat.stat.mode != '0644' -%}
-      {%- set _ = out.append({'key': 'jail drop-in ' ~ linux_hardening_ips_dropin, 'expected': 'present (0644) with the desired settings', 'actual': 'missing or different', 'fixable': true}) -%}
+      {%- if __lh_ips_file.content is not defined
+             or (__lh_ips_file.content | b64decode) != __lh_ips_content
+             or __lh_ips_stat.stat.mode != '0644' -%}
+      {%- set _ = out.append({'key': 'jail drop-in ' ~ linux_hardening_ips_dropin,
+                              'expected': 'present (0644) with the desired settings',
+                              'actual': 'missing or different', 'fixable': true}) -%}
       {%- endif -%}
       {%- if unit.get('UnitFileState', '') not in ['enabled', 'static'] -%}
-      {%- set _ = out.append({'key': 'fail2ban.service enabled', 'expected': 'enabled', 'actual': unit.get('UnitFileState', 'unknown'), 'fixable': true}) -%}
+      {%- set _ = out.append({'key': 'fail2ban.service enabled', 'expected': 'enabled',
+                              'actual': unit.get('UnitFileState', 'unknown'), 'fixable': true}) -%}
       {%- endif -%}
       {%- if __lh_ips_container | bool -%}
       {%- set _ = out.append({'key': 'fail2ban running', 'expected': 'active',
-                              'actual': 'not started in a container: bans would change the host firewall (files only)', 'fixable': false}) -%}
+                              'actual': 'not started in a container: bans would change the host firewall (files only)',
+                              'fixable': false}) -%}
       {%- else -%}
       {%- if unit.get('ActiveState') != 'active' -%}
-      {%- set _ = out.append({'key': 'fail2ban.service active', 'expected': 'running', 'actual': unit.get('ActiveState', 'unknown'), 'fixable': true}) -%}
+      {%- set _ = out.append({'key': 'fail2ban.service active', 'expected': 'running',
+                              'actual': unit.get('ActiveState', 'unknown'), 'fixable': true}) -%}
       {%- elif __lh_ips_jail.rc | default(1) != 0 -%}
-      {%- set _ = out.append({'key': 'sshd jail running', 'expected': 'active', 'actual': 'not found by fail2ban-client', 'fixable': true}) -%}
+      {%- set _ = out.append({'key': 'sshd jail running', 'expected': 'active',
+                              'actual': 'not found by fail2ban-client', 'fixable': true}) -%}
       {%- else -%}
-      {%- for a in (__lh_ips_actions.stdout_lines | default([]) | last | default('')).split(',') | map('trim') | select %}
-      {%- set missing = 'firewalld not running' if 'firewallcmd' in a and (__lh_ips_firewalld.status.ActiveState | default('')) != 'active'
+      {%- for a in (__lh_ips_actions.stdout_lines | default([]) | last | default('')).split(',')
+                   | map('trim') | select %}
+      {%- set missing = 'firewalld not running'
+                          if 'firewallcmd' in a and (__lh_ips_firewalld.status.ActiveState | default('')) != 'active'
                         else 'nft not installed' if 'nftables' in a and 'nft' not in __lh_ips_bins.stdout
-                        else 'iptables not installed' if 'iptables' in a and 'iptables' not in __lh_ips_bins.stdout else '' -%}
+                        else 'iptables not installed' if 'iptables' in a and 'iptables' not in __lh_ips_bins.stdout
+                        else '' -%}
       {%- if missing -%}
       {%- set _ = out.append({'key': 'ban action ' ~ a ~ ' usable', 'expected': 'its firewall backend works',
-                              'actual': missing ~ ' (reported only: bans would not reach the firewall; the firewall belongs to firewall_hardening)', 'fixable': false}) -%}
+                              'actual': missing ~ ' (reported only: bans would not reach the firewall;'
+                                        ~ ' the firewall belongs to firewall_hardening)',
+                              'fixable': false}) -%}
       {%- endif -%}
       {%- endfor -%}
       {%- endif -%}

@@ -8,14 +8,15 @@ Thanks for taking the time to contribute to `iamenr0s.intrusion_prevention`!
 2. Install the development dependencies:
 
    ```bash
-   pip3 install "ansible<10" molecule molecule-plugins[docker] docker cryptography yamllint ansible-lint
+   pip3 install ansible molecule "molecule-plugins[podman]" pre-commit
    ansible-galaxy collection install -r requirements.yml
+   pre-commit install
    ```
 
 ## Making changes
 
 - Keep changes small and focused — one topic per pull request.
-- Follow the existing YAML style; lint rules live in `.yamllint` and `.ansible-lint`.
+- Follow the existing YAML style (2-space indent, `true`/`false`, lines under 120 characters); lint rules live in `.yamllint` and `.ansible-lint`.
 - If you add or change a variable, document it in `README.md` and set a sane default in `defaults/main.yml`.
 
 ## Testing
@@ -23,17 +24,20 @@ Thanks for taking the time to contribute to `iamenr0s.intrusion_prevention`!
 Before opening a pull request, make sure lint and molecule pass:
 
 ```bash
-yamllint .
-ansible-lint
+# yamllint --strict, gitleaks and ansible-lint, exactly as CI runs them
+pre-commit run --all-files
 
 # Full test against the default distro (almalinux9)
 molecule test
+
+# Every container scenario, as CI does (the vagrant scenario needs a local VM)
+molecule test --all --exclude vagrant
 
 # Or against a specific distro
 MOLECULE_DISTRO=ubuntu2404 molecule test
 ```
 
-Molecule uses Podman locally and Docker in CI. The CI matrix covers Debian, Ubuntu, AlmaLinux, Rocky Linux, and Fedora — changes must not break any supported distro (see `upgrade_stable_os` in `defaults/main.yml`).
+Molecule uses Podman, locally and in CI. The CI matrix covers Debian, Ubuntu, AlmaLinux, Rocky Linux, and Fedora — changes must not break any supported distro (see `platforms` in `meta/main.yml` and the matrix in `.github/workflows/molecule.yml`).
 
 ## Submitting a pull request
 
