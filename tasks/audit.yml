@@ -6,12 +6,11 @@
   ansible.builtin.set_fact:
     linux_hardening_ips_findings: >-
       {{ [__lh_ips_checks | selectattr('failing') | map(attribute='finding') | list,
-          (__lh_ips_action_findings | from_json) if __lh_ips_jail_ok else []] | flatten(levels=1) }}
+          __lh_ips_action_findings | from_json] | flatten(levels=1) }}
   vars:
     __lh_ips_state: "{{ __lh_ips_unit.status | default({}) }}"
     __lh_ips_running: "{{ __lh_ips_installed and not (__lh_ips_container | bool) }}"
     __lh_ips_active: "{{ __lh_ips_state.ActiveState | default('') == 'active' }}"
-    __lh_ips_jail_ok: "{{ __lh_ips_running and __lh_ips_active and __lh_ips_jail.rc | default(1) == 0 }}"
     __lh_ips_can_install: >-
       {{ ansible_facts['os_family'] == 'Debian' or ansible_facts['distribution'] == 'Fedora'
          or (linux_hardening_ips_enable_epel | bool) }}
@@ -59,6 +58,7 @@
           actual: not found by fail2ban-client
           fixable: true
     # A ban action works only if its firewall backend does; the first matching broken backend is reported.
+    # facts.yml asks for the actions only when the jail is running, so the list is empty otherwise.
     __lh_ips_backends:
       - match: firewallcmd
         missing: firewalld not running

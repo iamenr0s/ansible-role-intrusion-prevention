@@ -24,6 +24,7 @@
   # A broken lookup would silently drop the self-ban guard; in a container the guard is never used.
   failed_when: __lh_ips_ss.rc != 0 and not (__lh_ips_container | bool)
 
+# ss prints "10.0.0.5:22", "[2001:db8::5]:22" or "[::ffff:10.0.0.5]:22": drop the port, brackets and v4-mapped prefix.
 - name: facts | Keep the peer addresses
   ansible.builtin.set_fact:
     __lh_ips_peers: >-
