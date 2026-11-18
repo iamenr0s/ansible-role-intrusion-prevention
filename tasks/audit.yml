@@ -1,8 +1,8 @@
 ---
-- name: Gather fail2ban state
+- name: audit | Gather fail2ban state
   ansible.builtin.include_tasks: facts.yml
 
-- name: Compare with desired state
+- name: audit | Compare with desired state
   ansible.builtin.set_fact:
     __lh_ips_findings: >-
       {%- set out = [] -%}
@@ -42,16 +42,16 @@
       {%- endif -%}
       {{ out | to_json }}
 
-- name: Record findings
+- name: audit | Record findings
   ansible.builtin.set_fact:
     linux_hardening_ips_findings: "{{ __lh_ips_findings | from_json }}"
 
-- name: Report intrusion_prevention result
+- name: audit | Report intrusion_prevention result
   ansible.builtin.debug:
     msg: "{{ 'COMPLIANT' if linux_hardening_ips_findings | length == 0 else linux_hardening_ips_findings }}"
 
 # After remediation only fixable findings fail the run; a container needs a human.
-- name: Fail on findings
+- name: audit | Fail on findings
   ansible.builtin.fail:
     msg: "intrusion_prevention found {{ __lh_ips_blocking | length }} deviation(s)."
   vars:

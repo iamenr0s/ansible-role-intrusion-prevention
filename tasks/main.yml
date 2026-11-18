@@ -60,4 +60,6 @@
               ansible.builtin.include_tasks: audit.yml
               vars:
                 __lh_ips_audit_fatal: true
-              when: linux_hardening_verify | bool
+              when:
+                - linux_hardening_verify | bool
+                - not ansible_check_mode  # nothing was changed, so a re-audit would only repeat the findings

@@ -1,14 +1,15 @@
 ---
-- name: Enable EPEL (EL only, with consent)
+- name: configure | Enable EPEL (EL only, with consent)
   ansible.builtin.dnf:
     name: epel-release
     state: present
+  register: __lh_ips_epel
   when:
     - ansible_facts['os_family'] == 'RedHat'
     - ansible_facts['distribution'] != 'Fedora'
     - linux_hardening_ips_enable_epel | bool
 
-- name: Install fail2ban (Debian family)
+- name: configure | Install fail2ban (Debian family)
   ansible.builtin.apt:
     name: fail2ban
     state: present
@@ -16,60 +17,73 @@
     cache_valid_time: 3600
   when: ansible_facts['os_family'] == 'Debian'
 
-- name: Install fail2ban (RedHat family)
+- name: configure | Install fail2ban (RedHat family)
   ansible.builtin.dnf:
     name: fail2ban
     state: present
-  when: ansible_facts['os_family'] == 'RedHat'
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - not (ansible_check_mode and __lh_ips_epel is changed)  # dnf cannot resolve fail2ban before EPEL exists
 
-- name: Gather fail2ban state
+- name: configure | Gather fail2ban state
   ansible.builtin.include_tasks: facts.yml
 
-- name: Write the jail drop-in
-  ansible.builtin.copy:
-    content: "{{ __lh_ips_content }}"
-    dest: "{{ linux_hardening_ips_dropin }}"
-    owner: root
-    group: root
-    mode: "0644"
-    backup: "{{ linux_hardening_backup | bool }}"
-  register: __lh_ips_written
-
-- name: Enable the service
-  ansible.builtin.systemd:
-    name: fail2ban
-    enabled: true
-
-# Not in a container: a ban there is a rule in the host's firewall.
-- name: Start the service
-  ansible.builtin.systemd:
-    name: fail2ban
-    state: started
-  when: not (__lh_ips_container | bool)
-
-- name: Reload fail2ban after a configuration change
-  ansible.builtin.command: fail2ban-client reload
+# Check mode does not install the package, so there is no directory or unit to preview against yet.
+- name: configure | Say why the rest is only previewed
+  ansible.builtin.debug:
+    msg: "Check mode on a host without fail2ban: only the install is previewed."
   when:
-    - __lh_ips_written is changed
-    - not (__lh_ips_container | bool)
-    - __lh_ips_unit.status.ActiveState | default('') == 'active'
-  changed_when: true
+    - ansible_check_mode
+    - not (__lh_ips_installed | bool)
 
-- name: Query the fail2ban unit
-  ansible.builtin.systemd:
-    name: fail2ban
-  register: __lh_ips_unit
+- name: configure | Configure fail2ban
+  when: __lh_ips_installed | bool or not ansible_check_mode
+  block:
+    - name: configure | Write the jail drop-in
+      ansible.builtin.copy:
+        content: "{{ __lh_ips_content }}"
+        dest: "{{ linux_hardening_ips_dropin }}"
+        owner: root
+        group: root
+        mode: "0644"
+        backup: "{{ linux_hardening_backup | bool }}"
+      register: __lh_ips_written
 
-# Whoever is connected over ssh now must not be banned by the daemon we just started. Runtime only: it is not
-# written to the drop-in (addresses drift) and lasts until fail2ban restarts, which ends the session anyway.
-- name: Never ban the current ssh peers
-  ansible.builtin.command: "fail2ban-client set sshd addignoreip {{ item }}"
-  loop: "{{ __lh_ips_peers if (linux_hardening_ips_auto_ignore_connection | bool) else [] }}"
-  when:
-    - not (__lh_ips_container | bool)
-    - __lh_ips_unit.status.ActiveState | default('') == 'active'
-  register: __lh_ips_addignore
-  retries: 10
-  delay: 2
-  until: __lh_ips_addignore.rc == 0
-  changed_when: false
+    - name: configure | Enable the service
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+
+    # Not in a container: a ban there is a rule in the host's firewall.
+    - name: configure | Start the service
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: started
+      when: not (__lh_ips_container | bool)
+
+    - name: configure | Reload fail2ban after a configuration change
+      ansible.builtin.command: fail2ban-client reload
+      when:
+        - __lh_ips_written is changed
+        - not (__lh_ips_container | bool)
+        - __lh_ips_unit.status.ActiveState | default('') == 'active'
+      changed_when: true
+
+    - name: configure | Query the fail2ban unit
+      ansible.builtin.systemd:
+        name: fail2ban
+      register: __lh_ips_unit
+
+    # Whoever is connected over ssh now must not be banned by the daemon we just started. Runtime only: it is not
+    # written to the drop-in (addresses drift) and lasts until fail2ban restarts, which ends the session anyway.
+    - name: configure | Never ban the current ssh peers
+      ansible.builtin.command: "fail2ban-client set sshd addignoreip {{ item }}"
+      loop: "{{ __lh_ips_peers if (linux_hardening_ips_auto_ignore_connection | bool) else [] }}"
+      when:
+        - not (__lh_ips_container | bool)
+        - __lh_ips_unit.status.ActiveState | default('') == 'active'
+      register: __lh_ips_addignore
+      retries: 10
+      delay: 2
+      until: __lh_ips_addignore.rc | default(0) == 0  # no rc when check mode skips it
+      changed_when: false

@@ -11,6 +11,7 @@ Features
 - Writes the sshd jail: `ignoreip`, `bantime 1h`, `findtime 10m`, `maxretry 5`, `port`; reloads the running daemon.
 - Enables and starts `fail2ban.service` and checks the sshd jail is known to the daemon.
 - Exempts every address with an established ssh session at runtime, so the role cannot ban the machine configuring it.
+- Supports check mode: `--check` previews remediation (on a host without fail2ban only the install is previewed, and the re-audit is skipped).
 - Backs up the drop-in file before changing it.
 - Does not manage the firewall (that is `firewall_hardening`); it only reports when the jail's ban action has no working backend.
 
@@ -23,14 +24,14 @@ Features
 | The jail's **ban action has a working backend** (firewalld running for `firewallcmd-*`, `nft` for `nftables`, `iptables`) | **reported only**: the firewall belongs to `firewall_hardening` |
 
 ## Variable names
-Variables use the collection-wide `linux_hardening_*` prefix (shared with sibling roles) rather than `intrusion_prevention_*`. Full list: `defaults/main.yml` and `meta/argument_specs.yml`. Set `linux_hardening_ips_sshd_port` when sshd does not listen on 22; `linux_hardening_ips_banaction: null` keeps the distribution's default ban action.
+Variables use the collection-wide `linux_hardening_*` prefix (shared with sibling roles) rather than `intrusion_prevention_*`. Full list: `defaults/main.yml` and `meta/argument_specs.yml`. Set `linux_hardening_ips_sshd_port` when sshd does not listen on 22 (a comma-separated list such as `"22,2222"` works; port ranges are not expanded by the self-ban guard, so list those addresses in `linux_hardening_ips_ignoreip`); `linux_hardening_ips_banaction: null` keeps the distribution's default ban action.
 
 ## Modes
 `audit` (default) is read-only and sets `linux_hardening_ips_findings` (`key, expected, actual, fixable`). `remediate` needs `linux_hardening_confirm_remediation: true`; after it only fixable findings fail the run.
 
 ## Safety
 - Loopback and `linux_hardening_ips_ignoreip` are written to the config.
-- Every address with an **established ssh session** when the role runs is also exempted at runtime (`fail2ban-client set sshd addignoreip`). This is read with `ss`, not from `SSH_CONNECTION`, which sudo resets. It is deliberately **not** written to the config (addresses drift) and is lost when fail2ban reloads or restarts; running the role again restores it. Put the addresses you always administer from (bastions, VPN ranges) in `linux_hardening_ips_ignoreip`.
+- Every address with an **established ssh session** when the role runs is also exempted at runtime (`fail2ban-client set sshd addignoreip`). This is read with `ss`, not from `SSH_CONNECTION`, which sudo resets; if `ss` fails outside a container the role fails rather than running without the guard. It is deliberately **not** written to the config (addresses drift) and is lost when fail2ban reloads or restarts; running the role again restores it. Put the addresses you always administer from (bastions, VPN ranges) in `linux_hardening_ips_ignoreip`.
 - In containers the role writes the files and enables the unit but never starts fail2ban: a ban is a rule in the **host** firewall. It reports `fail2ban running` as non-fixable there.
 
 ## Example
@@ -42,7 +43,7 @@ Variables use the collection-wide `linux_hardening_*` prefix (shared with siblin
       vars:
         linux_hardening_mode: remediate
         linux_hardening_confirm_remediation: true
-        linux_hardening_ips_ignoreip: [10.0.0.0/8]
+        linux_hardening_ips_ignoreip: [192.0.2.0/24]
         linux_hardening_ips_enable_epel: true      # EL only
         linux_hardening_ips_sshd_port: "2222"
 ```
@@ -56,7 +57,7 @@ Molecule container scenarios `default` (package, drop-in, enable; no start), `au
 ## Known gaps
 - A ban is proven by `banip` and by the filter matching a sample line, **not** by really failing ssh logins until the jail trips.
 - Only the sshd jail. No recidive jail, no `ignorecommand`, no mail actions; sshguard is not supported.
-- Not tested on an Ubuntu or Fedora VM, EL8/EL10, or a non-default sshd port. CIS IDs not mapped.
+- Not tested on an Ubuntu or Fedora VM, EL8/EL10, or a non-default sshd port. Check mode is not exercised in CI. CIS IDs not mapped.
 
 CI & Release (maintainers)
 ----------------------------
