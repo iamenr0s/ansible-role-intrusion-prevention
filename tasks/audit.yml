@@ -60,10 +60,15 @@
           fixable: true
     # A ban action works only if its firewall backend does; the first matching broken backend is reported.
     __lh_ips_backends:
-      - {match: firewallcmd, missing: firewalld not running,
-         broken: "{{ __lh_ips_firewalld.status.ActiveState | default('') != 'active' }}"}
-      - {match: nftables, missing: nft not installed, broken: "{{ 'nft' not in __lh_ips_bins.stdout }}"}
-      - {match: iptables, missing: iptables not installed, broken: "{{ 'iptables' not in __lh_ips_bins.stdout }}"}
+      - match: firewallcmd
+        missing: firewalld not running
+        broken: "{{ __lh_ips_firewalld.status.ActiveState | default('') != 'active' }}"
+      - match: nftables
+        missing: nft not installed
+        broken: "{{ 'nft' not in __lh_ips_bins.stdout }}"
+      - match: iptables
+        missing: iptables not installed
+        broken: "{{ 'iptables' not in __lh_ips_bins.stdout }}"
     __lh_ips_action_findings: >-
       {%- set out = [] -%}
       {%- for a in (__lh_ips_actions.stdout_lines | default([]) | last | default('')).split(',')
