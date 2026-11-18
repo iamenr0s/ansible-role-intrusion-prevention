@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking the time to contribute to `iamenr0s.ansible_role_intrusion_prevention`!
+Thanks for taking the time to contribute to `iamenr0s.intrusion_prevention`!
 
 ## Getting started
 
